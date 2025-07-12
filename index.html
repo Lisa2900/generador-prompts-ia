@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generador de Prompts - RealisticVision</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #232526 0%, #414345 100%);
+      font-family: 'Roboto', sans-serif;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      padding: 2.5rem 2rem 2rem 2rem;
+      max-width: 480px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #232526;
+      margin: 0 0 0.5rem 0;
+      text-align: center;
+    }
+    label {
+      font-weight: 500;
+      color: #414345;
+      margin-bottom: 0.3rem;
+    }
+    textarea {
+      width: 100%;
+      min-height: 70px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      padding: 0.7rem;
+      font-size: 1rem;
+      resize: vertical;
+      font-family: inherit;
+      background: #f7f7f7;
+      transition: border 0.2s;
+    }
+    textarea:focus {
+      border: 1.5px solid #4f8cff;
+      outline: none;
+    }
+    button {
+      background: linear-gradient(90deg, #4f8cff 0%, #38b6ff 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.8rem 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 0.5rem;
+      display: none;
+    }
+    .output {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .prompt-block {
+      background: #f0f4fa;
+      border-radius: 8px;
+      padding: 0.7rem;
+      font-size: 0.98rem;
+      color: #232526;
+      position: relative;
+    }
+    .prompt-label {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #4f8cff;
+      margin-bottom: 0.2rem;
+      display: block;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #4f8cff;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 0.2rem 0.7rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover {
+      background: #38b6ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Generador de Prompts</h1>
+    <label for="desc">Texto descriptivo (en español)</label>
+    <textarea id="desc" placeholder="Ej: mujer joven sonriendo en la playa al atardecer"></textarea>
+    
+    <div class="suggestions">
+      <small style="color: #666; font-size: 0.85rem;">💡 Sugerencias: mujer/hombre, joven/anciano, sonriendo, en la playa/bosque/ciudad, atardecer, realista, detallado</small>
+    </div>
+    
+    <button id="generarBtn" style="display:none">Generar Prompts</button>
+    <div class="output" id="output" style="display:none">
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt Positivo (Inglés)</span>
+        <button class="copy-btn" onclick="copiar('positivo')">Copiar</button>
+        <div id="positivo"></div>
+      </div>
+      <div class="prompt-block">
+        <span class="prompt-label">Prompt Negativo (Inglés)</span>
+        <button class="copy-btn" onclick="copiar('negativo')">Copiar</button>
+        <div id="negativo"></div>
+      </div>
+    </div>
+  </div>
+  <script src="diccionario.js"></script>
+  <script src="traductor.js"></script>
+  <script src="mejorador.js"></script>
+  <script src="utils.js"></script>
+  <script>
+    // Inicializar módulos
+    const traductor = new Traductor(diccionario);
+    const mejorador = new MejoradorPrompts();
+    
+    function actualizarPrompts() {
+      const desc = document.getElementById('desc').value.trim();
+      if (!desc) {
+        document.getElementById('output').style.display = 'none';
+        return;
+      }
+      
+      // Traducir y mejorar el prompt
+      const promptTraducido = traductor.traducir(desc);
+      const promptPositivo = mejorador.mejorarPromptPositivo(promptTraducido);
+      const promptNegativo = mejorador.obtenerPromptNegativo('completo');
+      
+      document.getElementById('positivo').innerText = promptPositivo;
+      document.getElementById('negativo').innerText = promptNegativo;
+      document.getElementById('output').style.display = 'flex';
+      
+      // Guardar en historial
+      const historial = UIUtils.obtenerDeLocal('historial', []);
+      historial.unshift({
+        original: desc,
+        positivo: promptPositivo,
+        negativo: promptNegativo,
+        fecha: new Date().toISOString()
+      });
+      // Mantener solo los últimos 10
+      if (historial.length > 10) {
+        historial.splice(10);
+      }
+      UIUtils.almacenarEnLocal('historial', historial);
+    }
+
+    // Debounce para evitar traducciones excesivas
+    const actualizarPromptsDebounced = UIUtils.debounce(actualizarPrompts, 500);
+
+    document.getElementById('desc').addEventListener('input', actualizarPromptsDebounced);
+
+    function copiar(tipo) {
+      const text = document.getElementById(tipo).innerText;
+      const btn = event.target;
+      
+      UIUtils.copiarAlPortapapeles(text).then(success => {
+        if (success) {
+          UIUtils.mostrarFeedback(btn, '✓ Copiado', 'success');
+        } else {
+          UIUtils.mostrarFeedback(btn, '✗ Error', 'error');
+        }
+      });
+    }
+
+    // Mostrar estadísticas del diccionario al cargar
+    window.addEventListener('load', () => {
+      const stats = traductor.obtenerEstadisticas();
+      console.log(`Diccionario cargado: ${stats.totalTerminos} términos`);
+    });
+  </script>
+</body>
+</html>
