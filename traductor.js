@@ -1,37 +1,93 @@
-// Módulo de traducción
+// Módulo de traducción con LibreTranslate local únicamente
 class Traductor {
-  constructor(diccionario) {
-    this.diccionario = diccionario;
+  constructor() {
+    this.cache = new Map(); // Cache para traducciones de API
+    this.apiUrl = 'http://localhost:5000/translate'; // Solo API local
   }
 
-  traducir(texto) {
-    let resultado = texto;
-    // Ordenar por frases largas primero para evitar conflictos
-    const claves = Object.keys(this.diccionario).sort((a, b) => b.length - a.length);
+  async traducir(texto) {
+    // Verificar cache primero
+    if (this.cache.has(texto)) {
+      return this.cache.get(texto);
+    }
+
+    try {
+      const resultado = await this.traducirConAPI(texto);
+      return resultado.replace(/\s{2,}/g, ' ').trim();
+    } catch (error) {
+      console.error('Error con LibreTranslate local:', error.message);
+      return texto; // Devolver texto original si falla
+    }
+  }
+
+  async traducirConAPI(texto) {
+    // Verificar cache primero
+    if (this.cache.has(texto)) {
+      return this.cache.get(texto);
+    }
     
-    claves.forEach(es => {
-      if (this.diccionario[es]) { // Solo reemplazar si la traducción no está vacía
-        const regex = new RegExp('(?<![a-zA-Záéíóúüñ])' + this.escapeRegex(es) + '(?![a-zA-Záéíóúüñ])', 'gi');
-        resultado = resultado.replace(regex, this.diccionario[es]);
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          q: texto,
+          source: 'es',
+          target: 'en',
+          format: 'text'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`LibreTranslate local error: ${response.status}`);
       }
-    });
-    
-    // Limpiar espacios múltiples y espacios al inicio/final
-    return resultado.replace(/\s{2,}/g, ' ').trim();
+
+      const data = await response.json();
+      const traducido = data.translatedText;
+      
+      // Guardar en cache
+      this.cache.set(texto, traducido);
+      
+      return traducido;
+    } catch (error) {
+      console.error('Error en LibreTranslate local:', error);
+      throw error; // Propagar el error para manejo superior
+    }
   }
 
-  escapeRegex(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Limpiar cache de traducciones
+  limpiarCache() {
+    this.cache.clear();
   }
 
-  agregarTermino(español, ingles) {
-    this.diccionario[español] = ingles;
+  // Verificar conectividad con API local
+  async verificarConectividad() {
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          q: 'test',
+          source: 'es',
+          target: 'en',
+          format: 'text'
+        })
+      });
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
   }
 
   obtenerEstadisticas() {
     return {
-      totalTerminos: Object.keys(this.diccionario).length,
-      tieneTermino: (termino) => this.diccionario.hasOwnProperty(termino)
+      traduccionesCache: this.cache.size,
+      apiUrl: this.apiUrl,
+      servidor: 'Local únicamente'
     };
   }
 }

@@ -103,16 +103,90 @@
     .copy-btn:hover {
       background: #38b6ff;
     }
+    .config-panel {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border: 1px solid #e9ecef;
+    }
+    .config-title {
+      font-weight: 600;
+      color: #495057;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .switch-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 20px;
+      background: #ccc;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .switch.active {
+      background: #4f8cff;
+    }
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .switch.active::after {
+      transform: translateX(20px);
+    }
+    .stats {
+      font-size: 0.8rem;
+      color: #6c757d;
+      margin-top: 0.5rem;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+    }
+    .status-online {
+      background: #28a745;
+    }
+    .status-offline {
+      background: #dc3545;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Generador de Prompts</h1>
+    
+    <!-- Panel de configuración -->
+    <div class="config-panel">
+      <div class="config-title">Estado de LibreTranslate Local</div>
+      <div class="switch-container">
+        <span class="status-indicator" id="apiStatus"></span>
+        <span>Servidor Local (localhost:5000)</span>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+    
     <label for="desc">Texto descriptivo (en español)</label>
     <textarea id="desc" placeholder="Ej: mujer joven sonriendo en la playa al atardecer"></textarea>
     
     <div class="suggestions">
-      <small style="color: #666; font-size: 0.85rem;">💡 Sugerencias: mujer/hombre, joven/anciano, sonriendo, en la playa/bosque/ciudad, atardecer, realista, detallado</small>
+      <small style="color: #666; font-size: 0.85rem;">💡 Escribe cualquier descripción en español. Requiere LibreTranslate local ejecutándose en puerto 5000.</small>
     </div>
     
     <button id="generarBtn" style="display:none">Generar Prompts</button>
@@ -129,13 +203,12 @@
       </div>
     </div>
   </div>
-  <script src="diccionario.js"></script>
   <script src="traductor.js"></script>
   <script src="mejorador.js"></script>
   <script src="utils.js"></script>
   <script>
-    // Inicializar módulos
-    const traductor = new Traductor(diccionario);
+    // Inicializar módulos (sin diccionario)
+    const traductor = new Traductor();
     const mejorador = new MejoradorPrompts();
     
     function actualizarPrompts() {
@@ -145,28 +218,37 @@
         return;
       }
       
-      // Traducir y mejorar el prompt
-      const promptTraducido = traductor.traducir(desc);
-      const promptPositivo = mejorador.mejorarPromptPositivo(promptTraducido);
-      const promptNegativo = mejorador.obtenerPromptNegativo('completo');
-      
-      document.getElementById('positivo').innerText = promptPositivo;
-      document.getElementById('negativo').innerText = promptNegativo;
+      // Mostrar indicador de carga
+      document.getElementById('positivo').innerHTML = '<em>Traduciendo...</em>';
+      document.getElementById('negativo').innerHTML = '<em>Preparando...</em>';
       document.getElementById('output').style.display = 'flex';
       
-      // Guardar en historial
-      const historial = UIUtils.obtenerDeLocal('historial', []);
-      historial.unshift({
-        original: desc,
-        positivo: promptPositivo,
-        negativo: promptNegativo,
-        fecha: new Date().toISOString()
+      // Traducir y mejorar el prompt (ahora es asíncrono)
+      traductor.traducir(desc).then(promptTraducido => {
+        const promptPositivo = mejorador.mejorarPromptPositivo(promptTraducido);
+        const promptNegativo = mejorador.obtenerPromptNegativo('completo');
+        
+        document.getElementById('positivo').innerText = promptPositivo;
+        document.getElementById('negativo').innerText = promptNegativo;
+        
+        // Guardar en historial
+        const historial = UIUtils.obtenerDeLocal('historial', []);
+        historial.unshift({
+          original: desc,
+          positivo: promptPositivo,
+          negativo: promptNegativo,
+          fecha: new Date().toISOString()
+        });
+        // Mantener solo los últimos 10
+        if (historial.length > 10) {
+          historial.splice(10);
+        }
+        UIUtils.almacenarEnLocal('historial', historial);
+      }).catch(error => {
+        console.error('Error en traducción:', error);
+        document.getElementById('positivo').innerHTML = '<em style="color: #e74c3c;">Error en la traducción</em>';
+        document.getElementById('negativo').innerHTML = '<em style="color: #e74c3c;">Error en la traducción</em>';
       });
-      // Mantener solo los últimos 10
-      if (historial.length > 10) {
-        historial.splice(10);
-      }
-      UIUtils.almacenarEnLocal('historial', historial);
     }
 
     // Debounce para evitar traducciones excesivas
@@ -187,11 +269,35 @@
       });
     }
 
-    // Mostrar estadísticas del diccionario al cargar
+    // Mostrar estadísticas al cargar
     window.addEventListener('load', () => {
-      const stats = traductor.obtenerEstadisticas();
-      console.log(`Diccionario cargado: ${stats.totalTerminos} términos`);
+      actualizarEstadisticas();
+      verificarEstadoAPI();
+      // Verificar estado cada 30 segundos
+      setInterval(verificarEstadoAPI, 30000);
     });
+
+    async function verificarEstadoAPI() {
+      const statusIndicator = document.getElementById('apiStatus');
+      const conectividad = await traductor.verificarConectividad();
+      
+      if (conectividad) {
+        statusIndicator.className = 'status-indicator status-online';
+        console.log('LibreTranslate local está funcionando');
+      } else {
+        statusIndicator.className = 'status-indicator status-offline';
+        console.warn('LibreTranslate local no está disponible en localhost:5000');
+      }
+    }
+
+    function actualizarEstadisticas() {
+      const stats = traductor.obtenerEstadisticas();
+      document.getElementById('stats').innerHTML = `
+        💾 Cache: ${stats.traduccionesCache} traducciones | 
+        🏠 Servidor: ${stats.servidor} |
+        🔗 Endpoint: localhost:5000/translate
+      `;
+    }
   </script>
 </body>
 </html>
