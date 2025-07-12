@@ -1,0 +1,13 @@
+nohup: ignoring input
+127.0.0.1 - - [12/Jul/2025 20:29:41] "GET /?id=62b37a28-ef00-442d-985e-113c718ea8ac&vscodeBrowserReqId=1752352181901 HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:29:41] "GET /traductor.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:29:42] "GET /mejorador.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:29:42] "GET /utils.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:30:10] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:30:10] "GET /traductor.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:30:10] "GET /mejorador.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:30:10] "GET /utils.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jul/2025 20:30:11] code 404, message File not found
+127.0.0.1 - - [12/Jul/2025 20:30:11] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [12/Jul/2025 20:32:50] "GET / HTTP/1.1" 304 -
+127.0.0.1 - - [12/Jul/2025 20:32:50] "GET /traductor.js HTTP/1.1" 304 -
